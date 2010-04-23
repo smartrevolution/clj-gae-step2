@@ -10,7 +10,7 @@ OAuth authorization protocols.
 IDP Discovery
 -------------
 
-Here is an example for a [Compjure](http://compojure.org) request
+Here is an example for a [Compojure](http://compojure.org) request
 handler that performs the OpenID discovery and responds with the
 information from the XRDS document:
 
@@ -26,7 +26,7 @@ information from the XRDS document:
 The domain for the OpenID provider (IDP) is given as request
 parameter. The auth-info containes two fields, one for the discovery
 information that is saved in the current session and will be used to
-verify the OpenID authentification. It contains informations about the
+verify the OpenID authentification. This contains informations about the
 OpenID discovery endpoint, used protocol versions etc. The other field
 in auth-info is the destination URL, the URL to request the login
 authorization.
@@ -49,6 +49,6 @@ authorization that returns the user's identity:
 
 To verify the user authorization the receiving URL of the
 complete-openid-handler as well as the discovery information from
-session and the request parameters are required. The verified
-auth-account contains the user's OpenID. His e-mail address, first
-name and last name are also contained (if available).
+the session and the request parameters are required. The verified
+auth-account contains the user's OpenID and, if available, his
+e-mail address, first name and last name.
