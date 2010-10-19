@@ -66,6 +66,7 @@
 
 (defn- user-identity
   [#^AuthResponseHelper auth-response-helper]
+  
   {:claimed-id (str (.. auth-response-helper (getClaimedId) (getIdentifier)))
    :e-mail (.getAxFetchAttributeValue auth-response-helper Step2$AxSchema/EMAIL)
    :first-name (.getAxFetchAttributeValue auth-response-helper Step2$AxSchema/FIRST_NAME)
@@ -83,6 +84,11 @@
                         (.getDestinationUrl true))
    :discovery-information (.getDiscoveryInformation auth-request-helper)})
 
+(defn with-ax-requests
+  [auth-request-helper ax-schema]
+  (.requestAxAttribute auth-request-helper 
+                       (.getShortName ax-schema) 
+                       (.getUri ax-schema) true 1))
 
 ;; ------------------------------------------------------------------------------
 ;; public functions
@@ -98,11 +104,15 @@
   "Return the authentication information for the given domain. This information
    contains the destination URL (the OpenID client must redirect to this url in order
    to start the authentication request) and discovery information (claimed and delegated
-   identifiers, endpoint, protcol versions etc.)."
+   identifiers, endpoint, protocol versions etc.)."
   [#^String domain #^String return-url #^String realm]
   (let [consumer-helper *consumer-helper*
         identifier (get-identifier domain)
-        auth-request-helper (.getAuthRequestHelper consumer-helper identifier return-url)]
+        auth-request-helper (-> (.getAuthRequestHelper consumer-helper 
+                                                       identifier return-url)
+                                (with-ax-requests Step2$AxSchema/EMAIL)
+                                (with-ax-requests Step2$AxSchema/FIRST_NAME)
+                                (with-ax-requests Step2$AxSchema/LAST_NAME))]
     (auth-information auth-request-helper realm)))
 
 (defn openid-user-identity
