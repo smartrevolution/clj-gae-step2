@@ -66,8 +66,8 @@
 
 (defn- user-identity
   [#^AuthResponseHelper auth-response-helper]
-  
-  {:claimed-id (str (.. auth-response-helper (getClaimedId) (getIdentifier)))
+  {:endpoint (str (.. auth-response-helper getAuthResponse getOpEndpoint))
+   :claimed-id (str (.. auth-response-helper (getClaimedId) (getIdentifier)))
    :e-mail (.getAxFetchAttributeValue auth-response-helper Step2$AxSchema/EMAIL)
    :first-name (.getAxFetchAttributeValue auth-response-helper Step2$AxSchema/FIRST_NAME)
    :last-name (.getAxFetchAttributeValue auth-response-helper Step2$AxSchema/LAST_NAME)})
