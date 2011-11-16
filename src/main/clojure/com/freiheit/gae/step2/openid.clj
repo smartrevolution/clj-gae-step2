@@ -1,12 +1,12 @@
 ;; Copyright (c) 2010 freiheit.com technologies gmbh
-;; 
+;;
 ;; This file is part of clj-gae-step2.
 ;; clj-gae-step2 is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU Lesser General Public License as published by
 ;; the Free Software Foundation, either version 3 of the License, or
 ;; (at your option) any later version.
 
-;; clj-gae-step2 is distributed in the hope that it will be useful,
+;; clj-gae-step2 is distributed in the hope that it will be useful
 ;; but WITHOUT ANY WARRANTY; without even the implied warranty of
 ;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ;; GNU Lesser General Public License for more details.
@@ -20,10 +20,13 @@
    [clojure.contrib.str-utils :only [re-gsub]])
   (:import
    [com.google.inject AbstractModule Guice]
-   [com.google.step2 AuthRequestHelper ConsumerHelper AuthResponseHelper AuthResponseHelper$ResultType Step2$AxSchema]
+   [com.google.step2 AuthRequestHelper ConsumerHelper
+    AuthResponseHelper AuthResponseHelper$ResultType Step2$AxSchema]
    [com.google.step2.discovery IdpIdentifier]
    [com.google.step2.example.consumer GuiceModule]
-   [org.openid4java.message ParameterList]))
+   [java.net.URL]
+   [org.openid4java.message ParameterList]
+   [org.openid4java.discovery DiscoveryInformation Identifier UrlIdentifier XriIdentifier]))
 
 
 ;;;; Authentication via OpenID. Uses the Step2 library to perform the
@@ -77,17 +80,76 @@
   (.setRealm auth-request realm)
   auth-request)
 
+(defmulti identifier->map class)
+
+(defmethod identifier->map UrlIdentifier
+  [identifier]
+  {:type :url
+   :id (.getIdentifier identifier)})
+
+(defmethod identifier->map XriIdentifier
+  [identifier]
+  {:type :xri
+   :id (.getIdentifier identifier)
+   :iri-normalform (.getIRINormalForm identifier)
+   :uri-normalform (.getURINormalForm identifier)})
+
+(defmethod identifier->map :default
+  [identifier]
+  nil)
+
+(defmulti map->identifier :type)
+
+(defmethod map->identifier :url
+  [identifier]
+  (UrlIdentifier. (:id identifier)))
+
+(defmethod map->identifier :xri
+  [identifier]
+  (XriIdentifier. (:id identifier)
+                  (:iri-formalform identifier)
+                  (:uri-normalform identifier)))
+
+(defmethod map->identifier :default
+  [identifier]
+  nil)
+
+(defn map->discovery-information
+  [discovery]
+  (DiscoveryInformation. (:endpoint discovery)
+                         (:claimed-id discovery)
+                         (:delegate discovery)
+                         (:version discovery)
+                         (:types discovery)))
+
+(defn- discovery-information->map
+  [discovery]
+  {:endpoint (..  discovery getOPEndpoint toString)
+   :claimed-id (identifier->map (.getClaimedIdentifier discovery))
+   :delegate (.getDelegateIdentifier discovery)
+   :version (.getVersion discovery)
+   :types (set (.getTypes discovery))})
+
+(defn- map->discovery-information
+  [info]
+  (DiscoveryInformation. (java.net.URL. (:endpoint info))
+                         (map->identifier (:claimed-id info))
+                         (:delegate info)
+                         (:version info)
+                         (:types info)))
+
 (defn- auth-information
   [#^AuthRequestHelper auth-request-helper realm]
   {:destination-url (-> (.generateRequest auth-request-helper)
                         (set-realm! realm)
                         (.getDestinationUrl true))
-   :discovery-information (.getDiscoveryInformation auth-request-helper)})
+   :discovery-information (-> (.getDiscoveryInformation auth-request-helper)
+                              discovery-information->map)})
 
 (defn with-ax-requests
   [auth-request-helper ax-schema]
-  (.requestAxAttribute auth-request-helper 
-                       (.getShortName ax-schema) 
+  (.requestAxAttribute auth-request-helper
+                       (.getShortName ax-schema)
                        (.getUri ax-schema) true 1))
 
 ;; ------------------------------------------------------------------------------
@@ -108,7 +170,7 @@
   [#^String domain #^String return-url #^String realm]
   (let [consumer-helper *consumer-helper*
         identifier (get-identifier domain)
-        auth-request-helper (-> (.getAuthRequestHelper consumer-helper 
+        auth-request-helper (-> (.getAuthRequestHelper consumer-helper
                                                        identifier return-url)
                                 (with-ax-requests Step2$AxSchema/EMAIL)
                                 (with-ax-requests Step2$AxSchema/FIRST_NAME)
@@ -121,7 +183,7 @@
    information adds information about claimed id, delegated id, endpoint, protocol
    versions etc. for additional security but can also be nil to skip the discovery
    information validation.
-   
+
    Returns nil if the authentification process failed."
   [#^String receiving-url #^IMap openid-xrds-params discovery-information]
   (let [consumer-helper *consumer-helper*
@@ -129,6 +191,6 @@
         auth-response-helper (.verify consumer-helper
                                       receiving-url
                                       auth-response
-                                      discovery-information)]
+                                      (map->discovery-information discovery-information))]
     (if (auth-success? auth-response-helper)
       (user-identity auth-response-helper))))
